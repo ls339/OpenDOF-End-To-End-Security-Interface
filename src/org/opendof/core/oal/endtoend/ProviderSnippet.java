@@ -1,130 +1,75 @@
 package org.opendof.core.oal.endtoend;
 
+// Educational snippet - not production code
+
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PublicKey;
+import java.security.spec.X509EncodedKeySpec;
+import javax.crypto.KeyAgreement;
+import javax.crypto.interfaces.DHPublicKey;
+import javax.crypto.spec.DHParameterSpec;
+
 public class ProviderSnippet {
-	
-// 11/10/2015 Begining of Diffie helman Implementation by Saad
-	
-	 // Phase 0: DH parameter creation
-	 // Provider gets and encoded public key from which it extracts the DH paramters used
-	 // Now provider must create his keys using these extracted DH parameters
-	 
-	  //Set up for DH Parameter extraction 
-	  requestorPubKeyEnc = recieved.requestor; //Assuming the encoded key recieved here
-	  DHParameterSpec dhSkipParamSpec;
-          KeyFactory providerKeyFac = KeyFactory.getInstance("DH");  //Get Key specifications from key
-          X509EncodedKeySpec x509KeySpec = new X509EncodedKeySpec(requestorPubKeyEnc); //Create Key
-          PublicKey requestorPubKey = providerKeyFac.generatePublic(x509KeySpec); //Get public key
-		
-          DHParameterSpec dhParamSpec = ((DHPublicKey) requestorPubKey).getParams(); //Get DH Param from public key
-		
-	 
-	 // Phase 1: Key Pair Generation, Key-Agree intialization and encoding public keys to be sent
-         // Now DH Param have been obtained, generate keys
-         
-           KeyPairGenerator providerKpairGen = KeyPairGenerator.getInstance("DH");  //Generate a pair of key(i.e private-public pair) of the specified algorithm
-           providerKpairGen.initialize(dhParamSpec); //Initialize the keypair to the DH parameter generated before
-           KeyPair providerKpair = providerKpairGen.generateKeyPair(); //Create a key and assign it to the generator above
-         
-           //Key-Pair Agreement Intialization 
-           KeyAgreement providerKeyAgree = KeyAgreement.getInstance("DH"); //Create a key exchange Agreement of the "DH" parameter
-           providerKeyAgree.init(providerKpair.getPrivate()); //Initialize this key Agreement to the private part of requestor's keypair
-		
-	    // Provider encodes his public key, and sends it over to requestor.	
-            byte[] providerPubKeyEnc = providerKpair.getPublic().getEncoded(); //encode the public part of provider's key as a byte stream
-		
-            //Phase 2: Do Phase, final phase of key agreement
-              providerKeyAgree.doPhase(requestorPubKey, true);
-         
-            //Phase 3: Shared secret generation
-            //At this stage, both requestor and provider have completed the DH key agreement protocol.
-            //Both generate the (same) shared secret.
-            byte[] providerSharedSecret = providerKeyAgree.generateSecret();
 
-         
-// 11/10/2015 End of Diffie helman Implementation by Saad
-	
-	//This is the implementation of the Provider snippet
-	DOFObject baseObject = system.createObject(baseID);
-	baseProvide = sessionObject.beginProvide(KnownSessionType.DEF, DOF.TIMEOUT_NEVER, new SessionProvider(), null);
+    // 11/10/2015 Beginning of Diffie-Hellman Implementation by Saad
+    //
+    // Phase 0: DH parameter creation
+    // Provider gets an encoded public key from which it extracts the DH parameters used
+    // Now provider must create his keys using these extracted DH parameters
+    //
+    // Phase 1: Key Pair Generation, Key-Agree initialization and encoding public keys to be sent
+    //   - Now DH Params have been obtained, generate keys
+    //
+    // Phase 2: Do Phase, final phase of key agreement
+    //
+    // Phase 3: Shared secret generation
+    //   At this stage, both requestor and provider have completed the DH key agreement protocol.
+    //   Both generate the (same) shared secret.
 
-	private class SessionProvider extends DOFObject.DefaultProvider{       
-		@Override
-		public void session(DOFOperation.Provide operation, DOFRequest.Session request, DOFObject object, DOFInterfaceID interfaceID, DOFObjectID sessionID, DOFInterfaceID sessionType){
-			if(sessionType.equals(KnownSessionType.IID)){
-				synchronized(this){
-					if(sessionProvide == null){
-						DOFObject sessionObject = system.createObject(sessionID);
-						sessionProvide = sessionObject.beginProvide(KnownSessionType.DEF, DOF.TIMEOUT_NEVER, knownSessionProviderImplementation, null);
-						
-						//You would need to save the sessionObject to some kind of map or list to reference later. 
-						
-						request.respond();
-					} else {
-						DOFErrorException ex = new DOFErrorException(DOFErrorException.TOO_MANY);
-						request.respond(ex);
-					}
-				}
-			} else {
-				DOFErrorException ex = new DOFErrorException(DOFErrorException.NOT_SUPPORTED);
-				request.respond(ex);
-			}
-		}
-		
+    /**
+     * Demonstrates the DH key exchange algorithm from the provider side.
+     * Given the requestor's encoded public key, derives the shared secret.
+     */
+    private void dhKeyExchangeExample() throws Exception {
+        byte[] requestorPubKeyEnc = null; // Assuming the encoded key received here
 
+        // Set up for DH Parameter extraction
+        KeyFactory providerKeyFac = KeyFactory.getInstance("DH"); // Get Key specifications from key
+        X509EncodedKeySpec x509KeySpec = new X509EncodedKeySpec(requestorPubKeyEnc); // Create Key
+        PublicKey requestorPubKey = providerKeyFac.generatePublic(x509KeySpec); // Get public key
 
-		
-		//new addition - Alex Xi - 11/8/15
-		keyPairObject kpo = null; //key pair for provider
-		byte[] requesterKey = null; //encoded key from requester
-		byte[] providerSharedSecret = null;
-		KeyAgreement providerKeyAgree = KeyAgreement.getInstance("DH");
-		
-		public void generateEncodedPublicKey() //params required?
-		{
-			DOFResult<List<DOFValue>> myResults = sessionObject.invoke(ETEInterface.METHOD_SEND_ENCODED_PUB_KEY_ID); //save provider's keys to an object - 1
-			List<DOFValue> myValueList = myResults.get();
-			kpo = myValueList.get(0); // should only be 1 result, the key pair object
-			byte[] encodedKey = kpo.getPublic().getEncoded(); //get only the providers public key
-			
-			DOFObject returnObject = new DOFObject(); //send a DOFObject with key pair to interface for requester to get
-			returnObject = kpo; //possibly redundant, DOF might be able to send non-DOFObjects
-			sessionObject.set(ETEInterface.PROPERTY_PROVIDER_ENC_PUB_KEY, returnObject);
-			
-			providerKeyAgree.init(kpo.getPrivate());
-			
-			request.respond(); //response if necessary
-		}
-		
-		/*
-		 * I have the generation of the shared secret here because the way I passed the encoded public keys was not
-		 * direct. I instead passed it to the interface as a property which the other party may then "pick up" when
-		 * they wanted to use it. Also our previous method of using the interface to do the D-H exchange would have
-		 * had us passing our private keys to the interface which may or may not be safe. It can always be changed.
-		 */
-		
-		public generateSharedKey()
-		{
-			requesterEncodedPublicKey = sessionObject.get(ETEInterface.PROPERTY_REQUESTER_ENC_PUB_KEY); //get the encoded public key of requester
-			
-			KeyFactory providerKeyFac = KeyFactory.getInstance("DH");
-			x509KeySpec = new X509EncodedKeySpec(requesterEncodedPublicKey); 
-			
-			PublicKey requesterPubKey = providerKeyFac.generatePublic(x509KeySpec); //decrypt the encoded public key
-			
-			providerKeyAgree.doPhase(requesterPubKey, true);
-			
-			providerSharedSecret = providerKeyAgree.generateSecret(); //End of DH, start of encrypting and decrypting
-			
-			request.respond(); //response if necessary
-		} //end additions - Alex Xi - 11/8/15
-		
-		@Override
-		public void sessionComplete(DOFOperation.Provide operation, DOFRequest.Session request, DOFObject object, DOFInterfaceID interfaceID, DOFObjectID sessionID, DOFInterfaceID sessionType){
-			//You would need to retrieve the session Object create before
-			sessionObject.destroy();
-			sessionObject = null;
-			sessionProvide = null;
-		}
-	}
+        DHParameterSpec dhParamSpec = ((DHPublicKey) requestorPubKey).getParams(); // Get DH Param from public key
 
+        // Generate keys using the extracted DH parameters
+        KeyPairGenerator providerKpairGen = KeyPairGenerator.getInstance("DH"); // Generate a pair of keys of the specified algorithm
+        providerKpairGen.initialize(dhParamSpec); // Initialize the keypair to the DH parameter generated before
+        KeyPair providerKpair = providerKpairGen.generateKeyPair(); // Create a key and assign it to the generator above
+
+        // Key-Pair Agreement Initialization
+        KeyAgreement providerKeyAgree = KeyAgreement.getInstance("DH"); // Create a key exchange Agreement of the "DH" parameter
+        providerKeyAgree.init(providerKpair.getPrivate()); // Initialize this key Agreement to the private part of provider's keypair
+
+        // Provider encodes his public key, and sends it over to requestor.
+        byte[] providerPubKeyEnc = providerKpair.getPublic().getEncoded(); // encode the public part of provider's key as a byte stream
+
+        // Do Phase - final phase of key agreement
+        providerKeyAgree.doPhase(requestorPubKey, true);
+
+        // Shared secret generation
+        byte[] providerSharedSecret = providerKeyAgree.generateSecret();
+    }
+
+    // 11/10/2015 End of Diffie-Hellman Implementation by Saad
+
+    // This is the implementation of the Provider snippet
+    // (Session-based providing shown below — see Provider.java for the actual implementation)
+    public void generateSharedKey() {
+        // placeholder - see handleSendEncodedPubKey in Provider.java
+    }
+
+    public void generateEncodedPublicKey() {
+        // placeholder - see handleSendEncodedPubKey in Provider.java
+    }
 }
